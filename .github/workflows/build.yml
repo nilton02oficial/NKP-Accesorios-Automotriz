@@ -24,11 +24,11 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Compilar APK
-        run: gradle assembleDebug
+      - name: Compilar APK Release
+        run: gradle assembleRelease
 
-      - name: Guardar APK
+      - name: Guardar APK Release
         uses: actions/upload-artifact@v4
         with:
-          name: NKP-Accesorios-APK
-          path: app/build/outputs/apk/debug/*.apk
+          name: NKP-Accesorios-APK-Release
+          path: app/build/outputs/apk/release/*.apk
