@@ -1,575 +1,65 @@
 package com.nkp.accesorios;
 
-import android.app.Activity;
-import android.app.AlertDialog;
-import android.os.Bundle;
-import android.graphics.Color;
-import android.text.InputType;
-import android.view.Gravity;
-import android.widget.*;
-import org.json.JSONArray;
-import org.json.JSONObject;
-import java.util.ArrayList;
-import java.util.Locale;
-
-public class MainActivity extends Activity {
-
-    LinearLayout principal;
-    ArrayList<Producto> productos = new ArrayList<>();
-    ArrayList<Venta> ventas = new ArrayList<>();
-    android.content.SharedPreferences datos;
-
-    static class Producto {
-        String nombre;
-        String unidad;
-        double compraPack;
-        double compraUnit;
-        double venta;
-        double stock;
-        double factor;
-        double metrosPorRollo;
-
-        Producto(String n, String u, double cp, double cu, double v, double s,
-                 double f, double m) {
-            nombre = n;
-            unidad = u;
-            compraPack = cp;
-            compraUnit = cu;
-            venta = v;
-            stock = s;
-            factor = f;
-            metrosPorRollo = m;
-        }
-    }
-
-    static class Venta {
-        String cliente, telefono, documento, pago, fecha;
-        double total;
-
-        Venta(String c, String t, String d, String p, String f, double x) {
-            cliente = c;
-            telefono = t;
-            documento = d;
-            pago = p;
-            fecha = f;
-            total = x;
-        }
-    }
-
-    @Override
-    protected void onCreate(Bundle b) {
-        super.onCreate(b);
-        datos = getSharedPreferences("NKP_DATOS", MODE_PRIVATE);
-        cargarDatos();
-        mostrarInicio();
-    }
-
-    TextView texto(String s, int tam) {
-        TextView t = new TextView(this);
-        t.setText(s);
-        t.setTextSize(tam);
-        t.setTextColor(Color.DKGRAY);
-        t.setPadding(20, 20, 20, 20);
-        return t;
-    }
-
-    Button boton(String s) {
-        Button b = new Button(this);
-        b.setText(s);
-        b.setTextSize(16);
-        b.setAllCaps(false);
-        return b;
-    }
-
-    EditText campo(String s) {
-        EditText e = new EditText(this);
-        e.setHint(s);
-        e.setPadding(15, 10, 15, 10);
-        return e;
-    }
-
-    void preparar(String titulo) {
-        principal = new LinearLayout(this);
-        principal.setOrientation(LinearLayout.VERTICAL);
-        principal.setPadding(15, 15, 15, 15);
-
-        TextView tituloView = texto(titulo, 23);
-        tituloView.setGravity(Gravity.CENTER);
-        tituloView.setTextColor(Color.rgb(130, 0, 0));
-        principal.addView(tituloView);
-
-        setContentView(principal);
-    }
-
-    void volver() {
-        Button b = boton("VOLVER");
-        b.setOnClickListener(v -> mostrarInicio());
-        principal.addView(b);
-    }
-
-    void mostrarInicio() {
-        preparar("NKP ACCESORIOS AUTOMOTRIZ");
-
-        TextView dueño = texto("De: Nilton Mamani Calsina", 16);
-        dueño.setGravity(Gravity.CENTER);
-        principal.addView(dueño);
-        principal.addView(texto("Sistema de ventas e inventario", 18));
-
-        Button venta = boton("NUEVA VENTA");
-        Button productosBtn = boton("PRODUCTOS E INVENTARIO");
-        Button historial = boton("HISTORIAL DE VENTAS");
-        Button caja = boton("CAJA");
-        Button info = boton("INFORMACIÓN");
-
-        principal.addView(venta);
-        principal.addView(productosBtn);
-        principal.addView(historial);
-        principal.addView(caja);
-        principal.addView(info);
-
-        venta.setOnClickListener(v -> nuevaVenta());
-        productosBtn.setOnClickListener(v -> mostrarProductos());
-        historial.setOnClickListener(v -> mostrarVentas());
-        caja.setOnClickListener(v -> mostrarCaja());
-        info.setOnClickListener(v ->
-            new AlertDialog.Builder(this)
-                .setTitle("NKP Accesorios Automotriz")
-                .setMessage("Sistema de ventas e inventario\n\nDe: Nilton Mamani Calsina")
-                .setPositiveButton("OK", null)
-                .show()
-        );
-    }
-
-    void mostrarProductos() {
-        preparar("PRODUCTOS E INVENTARIO");
-
-        Button agregar = boton("AGREGAR PRODUCTO");
-        principal.addView(agregar);
-
-        if (productos.isEmpty()) {
-            principal.addView(texto("No hay productos registrados.", 17));
-        }
-
-        for (int i = 0; i < productos.size(); i++) {
-            Producto p = productos.get(i);
-
-            LinearLayout bloque = new LinearLayout(this);
-            bloque.setOrientation(LinearLayout.VERTICAL);
-
-            String stockTxt = formatearNumero(p.stock) + " " + p.unidad + " base";
-            String packTxt = "Compra: S/ " + dinero(p.compraPack)
-                    + " por " + unidadCompraTexto(p);
-
-            TextView info = texto(
-                p.nombre +
-                "\nUnidad de venta: " + p.unidad +
-                "\nStock: " + stockTxt +
-                "\n" + packTxt +
-                "\nCosto por " + unidadBaseTexto(p) + ": S/ " + dinero(p.compraUnit) +
-                "\nVenta por " + unidadBaseTexto(p) + ": S/ " + dinero(p.venta),
-                16
-            );
-            bloque.addView(info);
-
-            Button editar = boton("EDITAR");
-            Button eliminar = boton("ELIMINAR");
-            LinearLayout acciones = new LinearLayout(this);
-            acciones.setOrientation(LinearLayout.HORIZONTAL);
-            acciones.addView(editar, new LinearLayout.LayoutParams(0, -2, 1));
-            acciones.addView(eliminar, new LinearLayout.LayoutParams(0, -2, 1));
-            bloque.addView(acciones);
-
-            final int indice = i;
-            editar.setOnClickListener(v -> editarProducto(indice));
-            eliminar.setOnClickListener(v -> confirmarEliminarProducto(indice));
-
-            principal.addView(bloque);
-        }
-
-        agregar.setOnClickListener(v -> agregarProducto());
-        volver();
-    }
-
-    void agregarProducto() {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-
-        EditText nombre = campo("Nombre del producto");
-
-        Spinner unidad = new Spinner(this);
-        String[] unidades = {"Unidad", "Docena", "Juego", "Caja", "Metro", "Rollo"};
-        unidad.setAdapter(new ArrayAdapter<String>(
-            this, android.R.layout.simple_spinner_dropdown_item, unidades));
-
-        EditText cantidadCompra = campo("Cantidad de la compra (ej. 1)");
-        EditText precioCompra = campo("Precio de compra del paquete");
-        EditText venta = campo("Precio de venta por unidad base");
-        EditText metrosRollo = campo("Metros por rollo (solo Rollo)");
-
-        cantidadCompra.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        precioCompra.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        venta.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        metrosRollo.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-
-        form.addView(nombre);
-        form.addView(unidad);
-        form.addView(cantidadCompra);
-        form.addView(precioCompra);
-        form.addView(venta);
-        form.addView(metrosRollo);
-
-        new AlertDialog.Builder(this)
-            .setTitle("Nuevo producto")
-            .setView(form)
-            .setNegativeButton("CANCELAR", null)
-            .setPositiveButton("GUARDAR", (d, w) -> {
-                try {
-                    String n = nombre.getText().toString().trim();
-                    if (n.isEmpty()) {
-                        mensaje("Ingresa el nombre del producto.");
-                        return;
-                    }
-
-                    String u = unidad.getSelectedItem().toString();
-                    double cantidad = Double.parseDouble(cantidadCompra.getText().toString());
-                    double cp = Double.parseDouble(precioCompra.getText().toString());
-                    double v = Double.parseDouble(venta.getText().toString());
-
-                    if (cantidad <= 0 || cp < 0 || v < 0) {
-                        mensaje("Revisa los datos ingresados.");
-                        return;
-                    }
-
-                    double factor = factorUnidad(u);
-                    double m = 0;
-
-                    if (u.equals("Caja")) {
-                        final EditText unidadesCaja = campo("¿Cuántas unidades contiene 1 caja?");
-                        new AlertDialog.Builder(this)
-                            .setTitle("Conversión de caja")
-                            .setView(unidadesCaja)
-                            .setNegativeButton("CANCELAR", null)
-                            .setPositiveButton("CONTINUAR", (dd, ww) -> {
-                                try {
-                                    double fc = Double.parseDouble(unidadesCaja.getText().toString());
-                                    if (fc <= 0) {
-                                        mensaje("La cantidad debe ser mayor que cero.");
-                                        return;
-                                    }
-                                    guardarProducto(n, u, cantidad, cp, v, fc, 0);
-                                } catch (Exception ex) {
-                                    mensaje("Cantidad de unidades por caja no válida.");
-                                }
-                            }).show();
-                        return;
-                    }
-
-                    if (u.equals("Rollo")) {
-                        m = Double.parseDouble(metrosRollo.getText().toString());
-                        if (m <= 0) {
-                            mensaje("Ingresa los metros que tiene 1 rollo.");
-                            return;
-                        }
-                        factor = m;
-                    }
-
-                    guardarProducto(n, u, cantidad, cp, v, factor, m);
-                } catch (Exception e) {
-                    mensaje("Revisa los datos ingresados.");
-                }
-            })
-            .show();
-    }
-
-    void guardarProducto(String n, String u, double cantidad, double cp, double v,
-                         double factor, double metros) {
-        double stockBase = cantidad * factor;
-        double costoUnit = cp / factor;
-
-        productos.add(new Producto(n, u, cp, costoUnit, v, stockBase, factor, metros));
-        guardarDatos();
-        mostrarProductos();
-
-        String extra = "";
-        if (u.equals("Docena")) {
-            extra = "\n1 docena = 12 unidades.";
-        } else if (u.equals("Rollo")) {
-            extra = "\n1 rollo = " + formatearNumero(metros) + " metros.";
-        } else if (u.equals("Caja")) {
-            extra = "\nLa caja se convirtió según las unidades indicadas.";
-        }
-
-        mensaje(
-            "Producto guardado.\n\n" +
-            "Stock base: " + formatearNumero(stockBase) +
-            "\nCosto por unidad base: S/ " + dinero(costoUnit) +
-            extra
-        );
-    }
-
-    void editarProducto(int indice) {
-        Producto p = productos.get(indice);
-
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-
-        EditText nombre = campo("Nombre");
-        nombre.setText(p.nombre);
-
-        EditText venta = campo("Precio de venta por unidad base");
-        venta.setText(String.valueOf(p.venta));
-
-        EditText stock = campo("Stock base actual");
-        stock.setText(String.valueOf(p.stock));
-
-        form.addView(nombre);
-        form.addView(venta);
-        form.addView(stock);
-
-        new AlertDialog.Builder(this)
-            .setTitle("Editar producto")
-            .setView(form)
-            .setNegativeButton("CANCELAR", null)
-            .setPositiveButton("GUARDAR", (d, w) -> {
-                try {
-                    p.nombre = nombre.getText().toString().trim();
-                    p.venta = Double.parseDouble(venta.getText().toString());
-                    p.stock = Double.parseDouble(stock.getText().toString());
-                    guardarDatos();
-                    mostrarProductos();
-                } catch (Exception e) {
-                    mensaje("Revisa los datos.");
-                }
-            }).show();
-    }
-
-    void confirmarEliminarProducto(int indice) {
-        Producto p = productos.get(indice);
-        new AlertDialog.Builder(this)
-            .setTitle("Eliminar producto")
-            .setMessage("¿Eliminar \"" + p.nombre + "\"?")
-            .setNegativeButton("CANCELAR", null)
-            .setPositiveButton("ELIMINAR", (d, w) -> {
-                productos.remove(indice);
-                guardarDatos();
-                mostrarProductos();
-            }).show();
-    }
-
-    void nuevaVenta() {
-        preparar("NUEVA VENTA");
-
-        EditText cliente = campo("Cliente");
-        EditText telefono = campo("Teléfono");
-        EditText documento = campo("DNI / RUC");
-        EditText producto = campo("Producto");
-        EditText cantidad = campo("Cantidad");
-
-        cantidad.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-
-        Spinner pago = new Spinner(this);
-        String[] opciones = {"Efectivo", "Yape", "Plin", "Tarjeta", "Fiado"};
-        pago.setAdapter(new ArrayAdapter<String>(
-            this, android.R.layout.simple_spinner_dropdown_item, opciones));
-
-        Button registrar = boton("REGISTRAR VENTA");
-
-        principal.addView(cliente);
-        principal.addView(telefono);
-        principal.addView(documento);
-        principal.addView(producto);
-        principal.addView(cantidad);
-        principal.addView(pago);
-        principal.addView(registrar);
-
-        registrar.setOnClickListener(v -> {
-            Producto encontrado = null;
-            for (Producto p : productos) {
-                if (p.nombre.equalsIgnoreCase(producto.getText().toString().trim())) {
-                    encontrado = p;
-                    break;
-                }
-            }
-
-            if (encontrado == null) {
-                mensaje("Producto no encontrado.");
-                return;
-            }
-
-            try {
-                double q = Double.parseDouble(cantidad.getText().toString());
-                if (q <= 0 || q > encontrado.stock) {
-                    mensaje("Stock insuficiente.");
-                    return;
-                }
-
-                double total = encontrado.venta * q;
-                encontrado.stock -= q;
-
-                ventas.add(new Venta(
-                    cliente.getText().toString(),
-                    telefono.getText().toString(),
-                    documento.getText().toString(),
-                    pago.getSelectedItem().toString(),
-                    "Venta registrada",
-                    total
-                ));
-
-                guardarDatos();
-                mensaje("Venta registrada\n\nTotal: S/ " + dinero(total));
-            } catch (Exception e) {
-                mensaje("Cantidad no válida.");
-            }
-        });
-
-        volver();
-    }
-
-    void mostrarVentas() {
-        preparar("HISTORIAL DE VENTAS");
-
-        if (ventas.isEmpty()) {
-            principal.addView(texto("No hay ventas registradas.", 17));
-        } else {
-            for (Venta v : ventas) {
-                principal.addView(texto(
-                    "Cliente: " + v.cliente +
-                    "\nDNI/RUC: " + v.documento +
-                    "\nPago: " + v.pago +
-                    "\nTotal: S/ " + dinero(v.total),
-                    16
-                ));
-            }
-        }
-        volver();
-    }
-
-    void mostrarCaja() {
-        preparar("CAJA");
-
-        double total = 0;
-        for (Venta v : ventas) total += v.total;
-
-        principal.addView(texto(
-            "Ventas realizadas: " + ventas.size() +
-            "\n\nTotal vendido: S/ " + dinero(total),
-            19
-        ));
-        volver();
-    }
-
-    double factorUnidad(String u) {
-        if (u.equals("Docena")) return 12;
-        if (u.equals("Juego")) return 1;
-        if (u.equals("Caja")) return 1;
-        if (u.equals("Metro")) return 1;
-        return 1;
-    }
-
-    String unidadBaseTexto(Producto p) {
-        if (p.unidad.equals("Rollo") || p.unidad.equals("Metro")) return "metro";
-        return "unidad";
-    }
-
-    String unidadCompraTexto(Producto p) {
-        if (p.unidad.equals("Docena")) return "docena";
-        if (p.unidad.equals("Juego")) return "juego";
-        if (p.unidad.equals("Caja")) return "caja";
-        if (p.unidad.equals("Rollo")) return "rollo";
-        if (p.unidad.equals("Metro")) return "metro";
-        return "unidad";
-    }
-
-    String formatearNumero(double n) {
-        if (Math.abs(n - Math.round(n)) < 0.000001) {
-            return String.valueOf((long)Math.round(n));
-        }
-        return String.format(Locale.US, "%.2f", n);
-    }
-
-    String dinero(double n) {
-        return String.format(Locale.US, "%.2f", n);
-    }
-
-    void guardarDatos() {
-        try {
-            JSONArray jp = new JSONArray();
-            for (Producto p : productos) {
-                JSONObject o = new JSONObject();
-                o.put("nombre", p.nombre);
-                o.put("unidad", p.unidad);
-                o.put("compraPack", p.compraPack);
-                o.put("compraUnit", p.compraUnit);
-                o.put("venta", p.venta);
-                o.put("stock", p.stock);
-                o.put("factor", p.factor);
-                o.put("metrosRollo", p.metrosPorRollo);
-                jp.put(o);
-            }
-
-            JSONArray jv = new JSONArray();
-            for (Venta v : ventas) {
-                JSONObject o = new JSONObject();
-                o.put("cliente", v.cliente);
-                o.put("telefono", v.telefono);
-                o.put("documento", v.documento);
-                o.put("pago", v.pago);
-                o.put("fecha", v.fecha);
-                o.put("total", v.total);
-                jv.put(o);
-            }
-
-            datos.edit()
-                .putString("productos_json", jp.toString())
-                .putString("ventas_json", jv.toString())
-                .apply();
-        } catch (Exception ignored) {
-        }
-    }
-
-    void cargarDatos() {
-        try {
-            String sp = datos.getString("productos_json", "");
-            if (!sp.isEmpty()) {
-                JSONArray a = new JSONArray(sp);
-                for (int i = 0; i < a.length(); i++) {
-                    JSONObject o = a.getJSONObject(i);
-                    productos.add(new Producto(
-                        o.optString("nombre", ""),
-                        o.optString("unidad", "Unidad"),
-                        o.optDouble("compraPack", 0),
-                        o.optDouble("compraUnit", 0),
-                        o.optDouble("venta", 0),
-                        o.optDouble("stock", 0),
-                        o.optDouble("factor", 1),
-                        o.optDouble("metrosRollo", 0)
-                    ));
-                }
-            }
-
-            String sv = datos.getString("ventas_json", "");
-            if (!sv.isEmpty()) {
-                JSONArray a = new JSONArray(sv);
-                for (int i = 0; i < a.length(); i++) {
-                    JSONObject o = a.getJSONObject(i);
-                    ventas.add(new Venta(
-                        o.optString("cliente", ""),
-                        o.optString("telefono", ""),
-                        o.optString("documento", ""),
-                        o.optString("pago", ""),
-                        o.optString("fecha", ""),
-                        o.optDouble("total", 0)
-                    ));
-                }
-            }
-        } catch (Exception ignored) {
-        }
-    }
-
-    void mensaje(String texto) {
-        new AlertDialog.Builder(this)
-            .setMessage(texto)
-            .setPositiveButton("OK", null)
-            .show();
-    }
+import android.app.*;import android.os.*;import android.content.*;import android.database.*;import android.database.sqlite.*;import android.graphics.Color;import android.net.Uri;import android.view.*;import android.widget.*;import java.text.*;import java.util.*;
+
+public class MainActivity extends Activity{
+ DatabaseHelper db; ArrayList<Line> cart=new ArrayList<>(); String backupData="";
+ static class Line{long id;String name,unit;double qty,price,cost;Line(long i,String n,String u,double q,double p,double c){id=i;name=n;unit=u;qty=q;price=p;cost=c;}}
+ @Override public void onCreate(Bundle b){super.onCreate(b);setContentView(R.layout.activity_main);db=new DatabaseHelper(this);
+  find(R.id.btnVentas,()->ventas());find(R.id.btnProductos,()->productos());find(R.id.btnCompras,()->compras());find(R.id.btnClientes,()->clientes());find(R.id.btnFiados,()->fiados());find(R.id.btnProveedores,()->proveedores());find(R.id.btnCaja,()->caja());find(R.id.btnReportes,()->reportes());find(R.id.btnCotizaciones,()->cotizaciones());find(R.id.btnHistorial,()->historialVentas());find(R.id.btnBackup,()->backup());
+ }
+ void find(int id,final Runnable r){findViewById(id).setOnClickListener(v->r.run());}
+ EditText e(String hint){EditText e=new EditText(this);e.setHint(hint);e.setSingleLine(false);return e;}
+ double num(EditText e){try{return Double.parseDouble(e.getText().toString().trim().replace(",","."));}catch(Exception x){return 0;}}
+ String money(double n){return "S/ "+String.format(Locale.US,"%.2f",n);}
+ void msg(String t,String m){new AlertDialog.Builder(this).setTitle(t).setMessage(m).setPositiveButton("OK",null).show();}
+ void inputDialog(String title,View v,DialogInterface.OnClickListener ok){new AlertDialog.Builder(this).setTitle(title).setView(v).setPositiveButton("Guardar",ok).setNegativeButton("Cancelar",null).show();}
+ double factor(String u,double f){u=u==null?"unidad":u.toLowerCase();if(u.equals("docena"))return 12;if(u.equals("juego"))return f>0?f:1;if(u.equals("caja"))return f>0?f:1;if(u.equals("rollo"))return f>0?f:1;return 1;}
+ String stockText(double base,String u,double f){double k=factor(u,f);return String.format(Locale.US,"%.2f %s (%.2f unidades base)",base/k,u,base);}
+
+ void productos(){
+  LinearLayout box=box(); EditText search=e("Buscar producto");box.addView(search);Button add=btn("+ Agregar producto");box.addView(add);TextView list=tv(14);box.addView(list,new LinearLayout.LayoutParams(-1,0,1));
+  Runnable render=()->{String q=search.getText().toString().toLowerCase();StringBuilder s=new StringBuilder();Cursor c=db.getReadableDatabase().rawQuery("SELECT id,nombre,compra,venta,stock,unidad,factor,sku,minimo FROM productos ORDER BY nombre",null);while(c.moveToNext()){if(!c.getString(1).toLowerCase().contains(q)&&!c.getString(7).toLowerCase().contains(q))continue;double st=c.getDouble(4),min=c.getDouble(8);s.append("#").append(c.getLong(0)).append("  ").append(c.getString(1)).append("\n").append("Compra: ").append(money(c.getDouble(2))).append("  Venta: ").append(money(c.getDouble(3))).append("\n").append("Stock: ").append(stockText(st,c.getString(5),c.getDouble(6))).append("  SKU: ").append(c.getString(7)).append(min>0&&st<=min?"  ⚠ STOCK BAJO":"").append("\n\n");}c.close();list.setText(s.length()==0?"No hay productos.":s.toString());};
+  search.addTextChangedListener(new android.text.TextWatcher(){public void beforeTextChanged(CharSequence s,int a,int b,int c){}public void onTextChanged(CharSequence s,int a,int b,int c){render.run();}public void afterTextChanged(android.text.Editable e){}});add.setOnClickListener(v->productoForm(null));render.run();
+  new AlertDialog.Builder(this).setTitle("Productos e inventario").setView(box).setPositiveButton("Cerrar",null).setNeutralButton("Editar / eliminar",(d,w)->productoPorId()).show();
+ }
+ LinearLayout box(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);l.setPadding(20,5,20,5);return l;}
+ Button btn(String t){Button b=new Button(this);b.setText(t);return b;} TextView tv(float sz){TextView t=new TextView(this);t.setTextSize(sz);t.setPadding(4,10,4,10);return t;}
+ void productoForm(Long id){
+  LinearLayout l=box();EditText n=e("Nombre / ítem");EditText sku=e("SKU / código (opcional)");EditText compra=e("Precio de compra del ítem");EditText venta=e("Precio de venta del ítem");EditText stock=e("Stock inicial en la unidad elegida");Spinner u=new Spinner(this);String[] us={"unidad","docena","juego","caja","metro","rollo"};u.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,us));EditText factor=e("Cantidad que contiene (caja/juego/rollo; docena = 12)");EditText minimo=e("Stock mínimo (opcional)");l.addView(n);l.addView(sku);l.addView(compra);l.addView(venta);l.addView(stock);l.addView(u);l.addView(factor);l.addView(minimo);
+  if(id!=null){Cursor c=db.getReadableDatabase().rawQuery("SELECT nombre,sku,compra,venta,stock,unidad,factor,minimo FROM productos WHERE id=?",new String[]{""+id});if(c.moveToFirst()){n.setText(c.getString(0));sku.setText(c.getString(1));compra.setText(""+c.getDouble(2));venta.setText(""+c.getDouble(3));double f=factor(c.getString(5),c.getDouble(6));stock.setText(""+(c.getDouble(4)/f));for(int i=0;i<us.length;i++)if(us[i].equals(c.getString(5)))u.setSelection(i);factor.setText(""+c.getDouble(6));minimo.setText(""+c.getDouble(7));}c.close();}
+  new AlertDialog.Builder(this).setTitle(id==null?"Agregar producto":"Editar producto").setView(l).setPositiveButton("Guardar",(d,w)->{String unit=u.getSelectedItem().toString();double f=factor(unit,num(factor));if(f<=0)f=1;ContentValues v=new ContentValues();v.put("nombre",n.getText().toString().trim());v.put("sku",sku.getText().toString().trim());v.put("compra",num(compra));v.put("venta",num(venta));v.put("stock",num(stock)*f);v.put("unidad",unit);v.put("factor",f);v.put("minimo",num(minimo)*f);SQLiteDatabase x=db.getWritableDatabase();if(id==null)x.insert("productos",null,v);else x.update("productos",v,"id=?",new String[]{""+id});msg("NKP","Producto guardado.");}).setNegativeButton("Cancelar",null).show();
+ }
+ void productoPorId(){EditText id=e("ID del producto");new AlertDialog.Builder(this).setTitle("Producto").setView(id).setItems(new String[]{"Editar","Eliminar"},(d,w)->{long x=(long)num(id);if(w==0)productoForm(x);else new AlertDialog.Builder(this).setTitle("Eliminar").setMessage("¿Eliminar producto ID "+x+"?").setPositiveButton("Sí",(a,z)->db.getWritableDatabase().delete("productos","id=?",new String[]{""+x})).setNegativeButton("No",null).show();}).show();}
+
+ void ventas(){cart.clear();LinearLayout l=box();EditText cli=e("Cliente");EditText tel=e("Teléfono");EditText doc=e("DNI / RUC");Spinner pago=spinner(new String[]{"Efectivo","Yape","Plin","Tarjeta","Fiado"});TextView items=tv(14);items.setText("Sin productos");TextView total=tv(20);total.setText("Total: S/ 0.00");Button add=btn("+ Agregar producto");l.addView(cli);l.addView(tel);l.addView(doc);l.addView(pago);l.addView(items);l.addView(add);l.addView(total);add.setOnClickListener(v->seleccionarProducto(items,total));
+  new AlertDialog.Builder(this).setTitle("Nueva venta").setView(l).setPositiveButton("REGISTRAR VENTA",(d,w)->guardarVenta(cli.getText().toString(),tel.getText().toString(),doc.getText().toString(),pago.getSelectedItem().toString())).setNegativeButton("Cancelar",null).show();
+ }
+ Spinner spinner(String[] a){Spinner s=new Spinner(this);s.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,a));return s;}
+ void seleccionarProducto(TextView items,TextView total){ArrayList<Long> ids=new ArrayList<>();ArrayList<String> names=new ArrayList<>();Cursor c=db.getReadableDatabase().rawQuery("SELECT id,nombre,stock,unidad,factor FROM productos ORDER BY nombre",null);while(c.moveToNext()){ids.add(c.getLong(0));names.add(c.getString(1)+" — "+stockText(c.getDouble(2),c.getString(3),c.getDouble(4)));}c.close();if(ids.isEmpty()){msg("Ventas","No hay productos. Agrega uno primero.");return;}EditText q=e("Buscar producto (opcional)");LinearLayout l=box();l.addView(q);TextView list=tv(15);l.addView(list);ArrayList<Integer> shown=new ArrayList<>();Runnable render=()->{list.setText("");shown.clear();String term=q.getText().toString().toLowerCase();StringBuilder s=new StringBuilder();for(int i=0;i<names.size();i++)if(names.get(i).toLowerCase().contains(term)){shown.add(i);s.append((shown.size())).append(". ").append(names.get(i)).append("\n");}list.setText(s.length()==0?"Sin coincidencias.":s.toString());};q.addTextChangedListener(new android.text.TextWatcher(){public void beforeTextChanged(CharSequence s,int a,int b,int c){}public void onTextChanged(CharSequence s,int a,int b,int c){render.run();}public void afterTextChanged(android.text.Editable e){}});render.run();new AlertDialog.Builder(this).setTitle("Buscar / seleccionar producto").setView(l).setPositiveButton("Seleccionar",(d,w)->{if(shown.size()>0)linea(ids.get(shown.get(0)),items,total);}).setNegativeButton("Cancelar",null).setOnDismissListener(x->{}).show();list.setOnClickListener(v->{if(shown.size()>0)linea(ids.get(shown.get(0)),items,total);});}
+ void linea(long id,TextView items,TextView total){Cursor c=db.getReadableDatabase().rawQuery("SELECT nombre,venta,compra,unidad,stock,factor FROM productos WHERE id=?",new String[]{""+id});if(!c.moveToFirst()){c.close();return;}String n=c.getString(0),u=c.getString(3);double p=c.getDouble(1),cost=c.getDouble(2),st=c.getDouble(4),f=c.getDouble(5);c.close();LinearLayout l=box();EditText q=e("Cantidad en "+u+" (stock "+String.format(Locale.US,"%.2f",st/f)+")");EditText pr=e("Precio de venta por "+u);pr.setText(""+p);l.addView(q);l.addView(pr);new AlertDialog.Builder(this).setTitle(n).setView(l).setPositiveButton("Agregar",(d,w)->{double qty=num(q),price=num(pr);if(qty<=0||qty*f>st){msg("Stock insuficiente","Disponible: "+(st/f)+" "+u);return;}cart.add(new Line(id,n,u,qty,price,cost));actualizarCarrito(items,total);}).setNegativeButton("Cancelar",null).show();}
+ void actualizarCarrito(TextView items,TextView total){StringBuilder s=new StringBuilder();double t=0;for(int i=0;i<cart.size();i++){Line z=cart.get(i);double line=z.qty*z.price;t+=line;s.append(i+1).append(". ").append(z.name).append(" — ").append(z.qty).append(" ").append(z.unit).append(" × ").append(money(z.price)).append(" = ").append(money(line)).append("\n");}items.setText(s.length()==0?"Sin productos":s.toString());total.setText("Total: "+money(t));}
+ void guardarVenta(String cli,String tel,String doc,String pago){if(cart.isEmpty()){msg("Venta","Agrega productos.");return;}SQLiteDatabase x=db.getWritableDatabase();x.beginTransaction();try{double total=0,g=0;for(Line z:cart){total+=z.qty*z.price;g+=(z.price-z.cost)*z.qty;}ContentValues v=new ContentValues();v.put("cliente",cli);v.put("telefono",tel);v.put("documento",doc);v.put("pago",pago);v.put("total",total);v.put("ganancia",g);v.put("fecha",System.currentTimeMillis());long id=x.insert("ventas",null,v);for(Line z:cart){Cursor c=x.rawQuery("SELECT factor,stock FROM productos WHERE id=?",new String[]{""+z.id});double f=1,st=0;if(c.moveToFirst()){f=c.getDouble(0);st=c.getDouble(1);}c.close();double need=z.qty*f;ContentValues q=new ContentValues();q.put("venta_id",id);q.put("producto_id",z.id);q.put("nombre",z.name);q.put("cantidad",z.qty);q.put("unidad",z.unit);q.put("precio",z.price);q.put("total",z.qty*z.price);q.put("costo",z.cost);q.put("ganancia",(z.price-z.cost)*z.qty);x.insert("detalle_venta",null,q);x.execSQL("UPDATE productos SET stock=? WHERE id=?",new Object[]{st-need,z.id});}if(pago.equals("Fiado")){ContentValues f=new ContentValues();f.put("venta_id",id);f.put("cliente",cli);f.put("total",total);f.put("pagado",0);f.put("saldo",total);f.put("fecha",System.currentTimeMillis());f.put("estado","PENDIENTE");x.insert("fiados",null,f);}else{ContentValues cajaVenta=new ContentValues();cajaVenta.put("tipo","INGRESO");cajaVenta.put("concepto","Venta #"+id);cajaVenta.put("monto",total);cajaVenta.put("fecha",System.currentTimeMillis());x.insert("caja",null,cajaVenta);}x.setTransactionSuccessful();msg("Venta registrada","Total: "+money(total)+"\nGanancia: "+money(g));}finally{x.endTransaction();}}
+
+ void compras(){LinearLayout l=box();EditText prov=e("Proveedor");EditText pid=e("ID del producto");EditText cant=e("Cantidad en la unidad del producto");EditText costo=e("Costo por unidad / paquete");l.addView(prov);l.addView(pid);l.addView(cant);l.addView(costo);new AlertDialog.Builder(this).setTitle("Registrar compra").setView(l).setPositiveButton("REGISTRAR",(d,w)->{long id=(long)num(pid);SQLiteDatabase x=db.getWritableDatabase();Cursor c=x.rawQuery("SELECT nombre,stock FROM productos WHERE id=?",new String[]{""+id});if(!c.moveToFirst()){c.close();msg("Compra","Producto no encontrado.");return;}String name=c.getString(0);double st=c.getDouble(1);c.close();double q=num(cant),co=num(costo);Cursor f=x.rawQuery("SELECT factor FROM productos WHERE id=?",new String[]{""+id});double fac=1;if(f.moveToFirst())fac=f.getDouble(0);f.close();x.execSQL("UPDATE productos SET stock=stock+?,compra=? WHERE id=?",new Object[]{q*fac,co,id});ContentValues cv=new ContentValues();cv.put("proveedor",prov.getText().toString());cv.put("producto_id",id);cv.put("producto",name);cv.put("cantidad",q);cv.put("costo",co);cv.put("total",q*co);cv.put("fecha",System.currentTimeMillis());x.insert("compras",null,cv);msg("Compra","Stock actualizado.");}).setNegativeButton("Cancelar",null).show();}
+
+ void clientes(){LinearLayout l=box();Button add=btn("+ Nuevo cliente");TextView list=tv(14);l.addView(add);l.addView(list);Runnable render=()->{StringBuilder s=new StringBuilder();Cursor c=db.getReadableDatabase().rawQuery("SELECT id,nombre,telefono,documento FROM clientes ORDER BY nombre",null);while(c.moveToNext())s.append("#").append(c.getLong(0)).append("  ").append(c.getString(1)).append("\nTel: ").append(c.getString(2)).append("  DNI/RUC: ").append(c.getString(3)).append("\n\n");c.close();list.setText(s.length()==0?"No hay clientes.":s.toString());};add.setOnClickListener(v->clienteForm());render.run();new AlertDialog.Builder(this).setTitle("Clientes").setView(l).setPositiveButton("Cerrar",null).show();}
+ void clienteForm(){LinearLayout l=box();EditText n=e("Nombre");EditText t=e("Teléfono");EditText d=e("DNI / RUC");EditText no=e("Nota");l.addView(n);l.addView(t);l.addView(d);l.addView(no);inputDialog("Nuevo cliente",l,(x,w)->{ContentValues v=new ContentValues();v.put("nombre",n.getText().toString());v.put("telefono",t.getText().toString());v.put("documento",d.getText().toString());v.put("nota",no.getText().toString());db.getWritableDatabase().insert("clientes",null,v);msg("Clientes","Cliente guardado.");});}
+ void proveedores(){LinearLayout l=box();Button add=btn("+ Nuevo proveedor");TextView list=tv(14);l.addView(add);l.addView(list);StringBuilder s=new StringBuilder();Cursor c=db.getReadableDatabase().rawQuery("SELECT id,nombre,telefono,documento FROM proveedores ORDER BY nombre",null);while(c.moveToNext())s.append("#").append(c.getLong(0)).append(" ").append(c.getString(1)).append("\n").append(c.getString(2)).append(" | ").append(c.getString(3)).append("\n\n");c.close();list.setText(s.length()==0?"No hay proveedores.":s.toString());add.setOnClickListener(v->{LinearLayout q=box();EditText n=e("Nombre");EditText t=e("Teléfono");EditText d=e("RUC / documento");q.addView(n);q.addView(t);q.addView(d);inputDialog("Nuevo proveedor",q,(a,b)->{ContentValues cv=new ContentValues();cv.put("nombre",n.getText().toString());cv.put("telefono",t.getText().toString());cv.put("documento",d.getText().toString());db.getWritableDatabase().insert("proveedores",null,cv);msg("Proveedores","Guardado.");});});new AlertDialog.Builder(this).setTitle("Proveedores").setView(l).setPositiveButton("Cerrar",null).show();}
+
+ void fiados(){LinearLayout l=box();TextView list=tv(14);l.addView(list);StringBuilder s=new StringBuilder();Cursor c=db.getReadableDatabase().rawQuery("SELECT id,cliente,total,pagado,saldo,fecha,estado FROM fiados WHERE saldo>0 ORDER BY fecha DESC",null);while(c.moveToNext())s.append("#").append(c.getLong(0)).append("  ").append(c.getString(1)).append("\nTotal ").append(money(c.getDouble(2))).append("  Pagado ").append(money(c.getDouble(3))).append("  Saldo ").append(money(c.getDouble(4))).append("\n\n");c.close();list.setText(s.length()==0?"No hay cuentas pendientes.":s.toString());Button pay=btn("Registrar pago de fiado");l.addView(pay);pay.setOnClickListener(v->pagoFiado());new AlertDialog.Builder(this).setTitle("Fiados / cuentas por cobrar").setView(l).setPositiveButton("Cerrar",null).show();}
+ void pagoFiado(){LinearLayout l=box();EditText id=e("ID del fiado");EditText monto=e("Monto a pagar");EditText nota=e("Nota");l.addView(id);l.addView(monto);l.addView(nota);inputDialog("Pago de fiado",l,(d,w)->{long fid=(long)num(id);double m=num(monto);SQLiteDatabase x=db.getWritableDatabase();Cursor c=x.rawQuery("SELECT saldo FROM fiados WHERE id=?",new String[]{""+fid});if(!c.moveToFirst()){c.close();msg("Fiado","No encontrado.");return;}double saldo=c.getDouble(0);c.close();if(m<=0||m>saldo){msg("Fiado","Monto no válido. Saldo: "+money(saldo));return;}x.execSQL("UPDATE fiados SET pagado=pagado+?,saldo=saldo-?,estado=? WHERE id=?",new Object[]{m,m,m>=saldo?"PAGADO":"PENDIENTE",fid});ContentValues cv=new ContentValues();cv.put("fiado_id",fid);cv.put("monto",m);cv.put("fecha",System.currentTimeMillis());cv.put("nota",nota.getText().toString());x.insert("pagos_fiado",null,cv);ContentValues cajaPago=new ContentValues();cajaPago.put("tipo","INGRESO");cajaPago.put("concepto","Pago de fiado #"+fid);cajaPago.put("monto",m);cajaPago.put("fecha",System.currentTimeMillis());x.insert("caja",null,cajaPago);msg("Fiado","Pago registrado.");});}
+
+ void caja(){LinearLayout l=box();Button ingreso=btn("+ Ingreso de caja");Button egreso=btn("+ Gasto / egreso");TextView saldo=tv(18);l.addView(saldo);l.addView(ingreso);l.addView(egreso);Runnable render=()->{Cursor c=db.getReadableDatabase().rawQuery("SELECT COALESCE(SUM(CASE WHEN tipo='INGRESO' THEN monto ELSE -monto END),0) FROM caja",null);double s=0;if(c.moveToFirst())s=c.getDouble(0);c.close();Cursor g=db.getReadableDatabase().rawQuery("SELECT COALESCE(SUM(monto),0) FROM gastos",null);double gg=0;if(g.moveToFirst())gg=g.getDouble(0);g.close();saldo.setText("Caja actual: "+money(s)+"\nGastos registrados: "+money(gg));};ingreso.setOnClickListener(v->movCaja("INGRESO",render));egreso.setOnClickListener(v->movCaja("EGRESO",render));render.run();new AlertDialog.Builder(this).setTitle("Caja y gastos").setView(l).setPositiveButton("Cerrar",null).show();}
+ void movCaja(String tipo,Runnable refresh){LinearLayout l=box();EditText concepto=e("Concepto");EditText monto=e("Monto");l.addView(concepto);l.addView(monto);new AlertDialog.Builder(this).setTitle(tipo.equals("INGRESO")?"Ingreso":"Gasto / egreso").setView(l).setPositiveButton("Guardar",(d,w)->{double m=num(monto);if(m<=0)return;SQLiteDatabase x=db.getWritableDatabase();ContentValues v=new ContentValues();v.put("tipo",tipo);v.put("concepto",concepto.getText().toString());v.put("monto",m);v.put("fecha",System.currentTimeMillis());x.insert("caja",null,v);if(tipo.equals("EGRESO")){ContentValues g=new ContentValues();g.put("concepto",concepto.getText().toString());g.put("monto",m);g.put("fecha",System.currentTimeMillis());x.insert("gastos",null,g);}refresh.run();}).setNegativeButton("Cancelar",null).show();}
+
+ void reportes(){SQLiteDatabase x=db.getReadableDatabase();Cursor a=x.rawQuery("SELECT COUNT(*),COALESCE(SUM(total),0),COALESCE(SUM(ganancia),0) FROM ventas WHERE estado='ACTIVA'",null);double n=0,t=0,g=0;if(a.moveToFirst()){n=a.getDouble(0);t=a.getDouble(1);g=a.getDouble(2);}a.close();Cursor b=x.rawQuery("SELECT COUNT(*),COALESCE(SUM(stock),0) FROM productos WHERE stock<=minimo AND minimo>0",null);double low=0;if(b.moveToFirst())low=b.getDouble(0);b.close();msg("Reportes","Ventas: "+(int)n+"\nVendido: "+money(t)+"\nGanancia: "+money(g)+"\nProductos con stock bajo: "+(int)low);}
+
+ void cotizaciones(){LinearLayout l=box();Button nueva=btn("+ Nueva cotización");TextView list=tv(14);l.addView(nueva);l.addView(list);Runnable render=()->{StringBuilder s=new StringBuilder();Cursor c=db.getReadableDatabase().rawQuery("SELECT id,cliente,total,estado,fecha,validez FROM cotizaciones ORDER BY fecha DESC",null);while(c.moveToNext())s.append("#").append(c.getLong(0)).append("  ").append(c.getString(1)).append("\n").append(money(c.getDouble(2))).append("  ").append(c.getString(3)).append("\n\n");c.close();list.setText(s.length()==0?"No hay cotizaciones.":s.toString());};nueva.setOnClickListener(v->nuevaCotizacion());render.run();new AlertDialog.Builder(this).setTitle("Cotizaciones").setView(l).setPositiveButton("Cerrar",null).show();}
+ void nuevaCotizacion(){cart.clear();LinearLayout l=box();EditText cli=e("Cliente");EditText tel=e("Teléfono");EditText doc=e("DNI / RUC");TextView items=tv(14);items.setText("Sin productos");TextView total=tv(18);total.setText("Total: S/ 0.00");EditText val=e("Validez en días");val.setText("7");Button add=btn("+ Agregar producto");l.addView(cli);l.addView(tel);l.addView(doc);l.addView(items);l.addView(total);l.addView(val);l.addView(add);add.setOnClickListener(v->seleccionarProducto(items,total));new AlertDialog.Builder(this).setTitle("Nueva cotización").setView(l).setPositiveButton("GUARDAR",(d,w)->{if(cart.isEmpty())return;SQLiteDatabase x=db.getWritableDatabase();double totalN=0;for(Line z:cart)totalN+=z.qty*z.price;ContentValues q=new ContentValues();q.put("cliente",cli.getText().toString());q.put("telefono",tel.getText().toString());q.put("documento",doc.getText().toString());q.put("total",totalN);q.put("estado","PENDIENTE");q.put("fecha",System.currentTimeMillis());q.put("validez",(long)num(val)*86400000L);long id=x.insert("cotizaciones",null,q);for(Line z:cart){ContentValues it=new ContentValues();it.put("cotizacion_id",id);it.put("producto_id",z.id);it.put("nombre",z.name);it.put("cantidad",z.qty);it.put("unidad",z.unit);it.put("precio",z.price);it.put("total",z.qty*z.price);x.insert("detalle_cotizacion",null,it);}msg("Cotización","Cotización #"+id+" guardada por "+money(totalN));}).setNegativeButton("Cancelar",null).show();}
+
+ void historialVentas(){LinearLayout l=box();EditText q=e("Buscar por cliente, DNI/RUC o producto");TextView list=tv(14);l.addView(q);l.addView(list);Runnable render=()->{String term=q.getText().toString().toLowerCase();StringBuilder s=new StringBuilder();Cursor c=db.getReadableDatabase().rawQuery("SELECT id,cliente,documento,pago,total,ganancia,fecha,estado FROM ventas ORDER BY fecha DESC",null);while(c.moveToNext()){long id=c.getLong(0);String cliente=c.getString(1);String documento=c.getString(2);String pago=c.getString(3);double total=c.getDouble(4),gan=c.getDouble(5);String fecha=new SimpleDateFormat("dd/MM/yyyy HH:mm",Locale.getDefault()).format(new Date(c.getLong(6)));String estado=c.getString(7);boolean ok=term.isEmpty()||cliente.toLowerCase().contains(term)||(documento!=null&&documento.toLowerCase().contains(term));if(!ok){Cursor d=db.getReadableDatabase().rawQuery("SELECT 1 FROM detalle_venta WHERE venta_id=? AND lower(nombre) LIKE ? LIMIT 1",new String[]{""+id,"%"+term+"%"});ok=d.moveToFirst();d.close();}if(ok)s.append("#").append(id).append("  ").append(fecha).append("\nCliente: ").append(cliente).append("  ").append(documento==null?"":documento).append("\nPago: ").append(pago).append("  Total: ").append(money(total)).append("  Ganancia: ").append(money(gan)).append("\nEstado: ").append(estado).append("\n\n");}c.close();list.setText(s.length()==0?"No hay ventas que coincidan.":s.toString());};q.addTextChangedListener(new android.text.TextWatcher(){public void beforeTextChanged(CharSequence s,int a,int b,int c){}public void onTextChanged(CharSequence s,int a,int b,int c){render.run();}public void afterTextChanged(android.text.Editable e){}});render.run();new AlertDialog.Builder(this).setTitle("Historial de ventas").setView(l).setPositiveButton("Cerrar",null).show();}
+
+ void backup(){SQLiteDatabase x=db.getReadableDatabase();StringBuilder s=new StringBuilder("NKP ACCESORIOS AUTOMOTRIZ\nRESPALDO\n");String[] tables={"productos","clientes","proveedores","ventas","detalle_venta","compras","cotizaciones","detalle_cotizacion","fiados","pagos_fiado","caja","gastos"};for(String t:tables){s.append("\n["+t+"]\n");Cursor c=x.rawQuery("SELECT * FROM "+t,null);for(int i=0;i<c.getColumnCount();i++){if(i>0)s.append("|");s.append(c.getColumnName(i));}s.append("\n");while(c.moveToNext()){for(int i=0;i<c.getColumnCount();i++){if(i>0)s.append("|");s.append(c.getString(i));}s.append("\n");}c.close();}backupData=s.toString();Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT);i.setType("text/plain");i.putExtra(Intent.EXTRA_TITLE,"NKP_respaldo.txt");startActivityForResult(i,77);}
+ @Override protected void onActivityResult(int r,int result,Intent data){super.onActivityResult(r,result,data);if(r==77&&result==RESULT_OK&&data!=null){try{java.io.OutputStream os=getContentResolver().openOutputStream(data.getData());os.write(backupData.getBytes("UTF-8"));os.close();msg("Respaldo","Archivo guardado correctamente.");}catch(Exception e){msg("Error","No se pudo guardar el respaldo.");}}}
 }
